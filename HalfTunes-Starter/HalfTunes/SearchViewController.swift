@@ -86,7 +86,13 @@ class SearchViewController: UIViewController {
   
   // Called when the Download button for a track is tapped
   func startDownload(_ track: Track) {
-    // TODO
+    if let urlString = track.previewUrl , let url = URL(string: urlString) {
+        let download = Download(url: urlString)
+        download.downloadTask = downloadsSession.downloadTask(with: url)
+        download.downloadTask!.resume()
+        download.isDownloading = true
+        activeDownloads[download.url] = download
+    }
   }
   
   // Called when the Pause button for a track is tapped
@@ -111,6 +117,19 @@ class SearchViewController: UIViewController {
       presentMoviePlayerViewControllerAnimated(moviePlayer)
     }
   }
+
+    func trackIndexForDonwloadTask(donwloadTask: URLSessionDownloadTask) -> Int? {
+        if let url = donwloadTask.originalRequest?.url?.absoluteString {
+            for(index, track) in searchResults.enumerated() {
+                if url == track.previewUrl! {
+                    return index
+                }
+            }
+        }
+        return nil
+    }
+    
+    
   
   // MARK: Download helper methods
   
@@ -267,10 +286,31 @@ extension SearchViewController: UITableViewDelegate {
 }
 
 extension SearchViewController: URLSessionDownloadDelegate {
-
-    
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        print("Finished downloading")
+        if let originalURL = downloadTask.originalRequest?.url?.absoluteString, let destinationURL = localFilePathForUrl(originalURL) {
+            print(destinationURL)
+        
+        let fileManager = FileManager.default
+        do {
+            try fileManager.removeItem(at: destinationURL)
+        } catch {
+            
+        }
+            do  {
+                try fileManager.copyItem(at: location, to: destinationURL)
+            } catch let error as NSError {
+                print("Could not copy file ")
+            }
+        }
+        if let url = downloadTask.originalRequest?.url?.absoluteString {
+            activeDownloads[url] = nil
+            if let trackINdex = trackIndexForDonwloadTask(donwloadTask: downloadTask) {
+                DispatchQueue.main.async {
+                    self.tableView.reloadRows(at: [IndexPath(row: trackINdex, section: 0)], with: .fade)
+                }
+            }
+        }
+    
     }
 }
 
