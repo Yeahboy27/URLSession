@@ -251,6 +251,15 @@ extension SearchViewController: UITableViewDataSource {
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let cell = tableView.dequeueReusableCell(withIdentifier: "TrackCell", for: indexPath) as!TrackCell
     
+    var showDownloadControls = false
+    if let download = activeDownloads[searchResults[indexPath.row].previewUrl!] {
+        showDownloadControls = true
+        cell.progressView.progress = download.progress
+        cell.progressLabel.text = (download.isDownloading) ? "Downloading..." : "Paused"
+    }
+    cell.progressView.isHidden = !showDownloadControls
+    cell.progressLabel.isHidden = !showDownloadControls
+
     // Delegate cell button tap events to this view controller
     cell.delegate = self
     
@@ -263,7 +272,7 @@ extension SearchViewController: UITableViewDataSource {
     // If the track is already downloaded, enable cell selection and hide the Download button
     let downloaded = localFileExistsForTrack(track)
     cell.selectionStyle = downloaded ? UITableViewCellSelectionStyle.gray : UITableViewCellSelectionStyle.none
-    cell.downloadButton.isHidden = downloaded
+    cell.downloadButton.isHidden = downloaded || showDownloadControls
     
     return cell
   }
@@ -310,7 +319,19 @@ extension SearchViewController: URLSessionDownloadDelegate {
                 }
             }
         }
+    }
     
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        if let downloadUrl = downloadTask.originalRequest?.url?.absoluteString, let donwload = activeDownloads[downloadUrl] {
+            donwload.progress = Float(totalBytesWritten)/Float(totalBytesWritten)
+            let totalSize = ByteCountFormatter.string(fromByteCount: totalBytesWritten, countStyle: .binary)
+            if let trackIndex = trackIndexForDonwloadTask(donwloadTask: downloadTask), let trackCell = tableView.cellForRow(at: IndexPath(row: trackIndex, section: 0)) as? TrackCell {
+                DispatchQueue.main.async {
+                    trackCell.progressView.progress = donwload.progress
+                    trackCell.progressLabel.text = String(format: "%.1f%% of %@",  donwload.progress * 100, totalSize)
+                }
+            }
+        }
     }
 }
 
