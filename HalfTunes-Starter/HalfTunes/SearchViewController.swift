@@ -97,17 +97,39 @@ class SearchViewController: UIViewController {
   
   // Called when the Pause button for a track is tapped
   func pauseDownload(_ track: Track) {
-    // TODO
+    if let urlString = track.previewUrl, let download = activeDownloads[urlString] {
+        if(download.isDownloading) {
+        download.downloadTask?.cancel(byProducingResumeData: { (data) in
+            if data != nil {
+                download.resumeData = data
+            }
+        })
+            download.isDownloading = false
+        }
+    }
   }
   
   // Called when the Cancel button for a track is tapped
   func cancelDownload(_ track: Track) {
-    // TODO
+    if let urlString = track.previewUrl, let donwload = activeDownloads[urlString] {
+        donwload.downloadTask?.cancel()
+        activeDownloads[urlString] = nil
+    }
   }
   
   // Called when the Resume button for a track is tapped
   func resumeDownload(_ track: Track) {
-    // TODO
+    if let urlString = track.previewUrl , let download = activeDownloads[urlString] {
+        if let resumeData = download.resumeData {
+            download.downloadTask = downloadsSession.downloadTask(withResumeData: resumeData)
+            download.downloadTask?.resume()
+            download.isDownloading = true
+        } else if let url = URl(string: download.url) {
+            download.downloadTask = downloadsSession.downloadTask(with: url)
+            download.downloadTask?.resume()
+            download.isDownloading = true
+        }
+    }
   }
   
    // This method attempts to play the local file (if it exists) when the cell is tapped
@@ -259,7 +281,10 @@ extension SearchViewController: UITableViewDataSource {
     }
     cell.progressView.isHidden = !showDownloadControls
     cell.progressLabel.isHidden = !showDownloadControls
-
+    if let download = activeDownloads[track.previewUrl!] {
+        let title = (download.isDownloading) ? "Pause" : "Resume"
+        cell.pauseButton.setTitle(title, for: .normal)
+    }
     // Delegate cell button tap events to this view controller
     cell.delegate = self
     
